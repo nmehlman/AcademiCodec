@@ -14,6 +14,26 @@ from academicodec.utils import init_weights
 
 LRELU_SLOPE = 0.1
 
+class EmotionClassifier(nn.Module):
+
+    def __init__(self, latent_size: int, dropout: float = 0.1):
+        super().__init__()
+        self.enc = nn.TransformerEncoderLayer(d_model=latent_size, nhead=4, dim_feedforward=latent_size * 2, batch_first=True, dropout=dropout)
+        self.norm = nn.LayerNorm(latent_size)
+        self.linear_aro = nn.Linear(latent_size, 1)
+        self.linear_val = nn.Linear(latent_size, 1)
+        
+    def forward(self, x: torch.Tensor):
+        """
+        x: (batch, latent_size, time)
+        """
+        x = x.permute(0, 2, 1)  # (batch, time, latent_size)
+        x = self.enc(x)
+        x = self.norm(x.mean(1))
+        y_aro = self.linear_aro(x).squeeze(-1)  # (batch,)
+        y_val = self.linear_val(x).squeeze(-1)  # (batch,)
+        return {"arousal": y_aro, "valence": y_val}
+
 
 class ResBlock1(torch.nn.Module):
     def __init__(self, h, channels, kernel_size=3, dilation=(1, 3, 5)):

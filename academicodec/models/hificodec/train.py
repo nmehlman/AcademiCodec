@@ -58,6 +58,8 @@ def reconstruction_loss(x, G_x, device, eps=1e-7):
     #assert 1==2
     return L
 
+def emo_callback():
+    pass
 
 def train(rank, a, h):
     torch.cuda.set_device(rank)

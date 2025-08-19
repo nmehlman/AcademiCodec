@@ -17,7 +17,6 @@ import matplotlib.pylab as plt
 import re
 import pathlib
 
-
 def seed_everything(seed, cudnn_deterministic=False):
     """
     Function that sets seed for pseudo-random number generators in:

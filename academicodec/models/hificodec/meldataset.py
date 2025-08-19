@@ -5,6 +5,7 @@ import random
 
 import librosa
 import numpy as np
+import json
 import torch.utils.data
 from librosa.filters import mel as librosa_mel_fn
 
@@ -60,7 +61,7 @@ def mel_spectrogram(y,
 
     global mel_basis, hann_window
     if fmax not in mel_basis:
-        mel = librosa_mel_fn(sampling_rate, n_fft, num_mels, fmin, fmax)
+        mel = librosa_mel_fn(sr=sampling_rate, n_fft=n_fft, n_mels=num_mels, fmin=fmin, fmax=fmax)
         mel_basis[str(fmax) + '_' +
                   str(y.device)] = torch.from_numpy(mel).float().to(y.device)
         hann_window[str(y.device)] = torch.hann_window(win_size).to(y.device)
@@ -80,9 +81,11 @@ def mel_spectrogram(y,
         center=center,
         pad_mode='reflect',
         normalized=False,
-        onesided=True)
+        onesided=True,
+        return_complex=True)
 
-    spec = torch.sqrt(spec.pow(2).sum(-1) + (1e-9))
+    spec = torch.abs(spec)
+    #spec = torch.sqrt(spec.pow(2).sum(-1) + (1e-9))
 
     spec = torch.matmul(mel_basis[str(fmax) + '_' + str(y.device)], spec)
     spec = spectral_normalize_torch(spec)
@@ -115,7 +118,9 @@ class MelDataset(torch.utils.data.Dataset):
                  device=None,
                  fmax_loss=None,
                  fine_tuning=False,
-                 base_mels_path=None):
+                 base_mels_path=None,
+                 emotion_labels=None):
+                 
         self.audio_files = training_files
         random.seed(1234)
         if shuffle:
@@ -136,9 +141,14 @@ class MelDataset(torch.utils.data.Dataset):
         self.device = device
         self.fine_tuning = fine_tuning
         self.base_mels_path = base_mels_path
+        if emotion_labels is not None:
+            self.emotion_labels = json.load(open(emotion_labels, 'r'))
+        else:
+            self.emotion_labels = None
 
     def __getitem__(self, index):
         filename = self.audio_files[index]
+        
         if self._cache_ref_count == 0:
             try:
                 # Note by yuantian: load with the sample_rate of config
@@ -215,8 +225,39 @@ class MelDataset(torch.utils.data.Dataset):
             self.fmin,
             self.fmax_loss,
             center=False)
-
-        return (mel.squeeze(), audio.squeeze(0), filename, mel_loss.squeeze())
+        
+        if self.emotion_labels is not None:
+            emotion_labels = self.emotion_labels[filename.split('/')[-1].split('.')[0]]
+            return (mel.squeeze(), audio.squeeze(0), filename, mel_loss.squeeze(), emotion_labels)
+        else:
+            return (mel.squeeze(), audio.squeeze(0), filename, mel_loss.squeeze())
 
     def __len__(self):
         return len(self.audio_files)
+
+if __name__ == "__main__":
+    import argparse
+    from torch.utils.data import DataLoader
+
+    training_files, validation_files = get_dataset_filelist(
+        argparse.Namespace(
+            input_training_file="/home/nmehlman/emo-steer/AcademiCodec/data/expresso/train.lst",
+            input_validation_file="/home/nmehlman/emo-steer/AcademiCodec/data/expresso/val.lst"
+        )
+    )
+    dataset = MelDataset(training_files, segment_size=16000, n_fft=1024,
+                         num_mels=80, hop_size=256, win_size=1024,
+                         sampling_rate=22050, fmin=0.0, fmax=8000.0,
+                         split=True, shuffle=True,
+                         emotion_labels="/home/nmehlman/emo-steer/AcademiCodec/data/expresso/emotion_labels.json"
+                         )
+
+    dataloader = DataLoader(dataset, batch_size=4, shuffle=False, num_workers=0)
+    batch = next(iter(dataloader))
+
+    print("Mel batch shape:", batch[0].shape)
+    print("Audio batch shape:", batch[1].shape)
+    print("Filename batch:", batch[2])
+    print("Mel loss batch shape:", batch[3].shape)
+    if dataset.emotion_labels is not None:
+        print("Emotion labels batch:", batch[4])
