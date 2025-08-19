@@ -466,7 +466,7 @@ def main():
     parser.add_argument('--num_ckpt_keep', default=5, type=int)
     parser.add_argument('--fine_tuning', default=False, type=bool)
     parser.add_argument('--pretrained_ckpt', default='')
-    parser.add_argument('--adversarial', action='store_true', default=True)  # Always true
+
     a = parser.parse_args()
     assert a.training_emotion_labels is not None
     assert a.validation_emotion_labels is not None

@@ -14,24 +14,60 @@ from academicodec.utils import init_weights
 
 LRELU_SLOPE = 0.1
 
+class ASP(nn.Module):
+    
+    def __init__(self, dim, hidden=128):
+        super().__init__()
+        self.att = nn.Sequential(nn.Linear(dim, hidden), nn.Tanh(), nn.Linear(hidden, 1))
+    
+    def forward(self, x):  # x: [B, T, D]
+        w = self.att(x)                         # [B,T,1]
+        a = torch.softmax(w, dim=1)             # [B,T,1]
+        mu = torch.sum(a * x, dim=1)            # [B,D]
+        sg = torch.sqrt(torch.sum(a * (x - mu[:,None,:])**2 + 1e-5, dim=1))
+        return torch.cat([mu, sg], dim=-1)    
+
+class Conv1dLayerNormBlock(nn.Module):
+    def __init__(self, channels, dilation):
+        super().__init__()
+        self.norm = nn.LayerNorm(channels)
+        self.conv1 = nn.Conv1d(channels, channels, kernel_size=3, padding=dilation, dilation=dilation, groups=1)
+        self.silu1 = nn.SiLU()
+        self.conv2 = nn.Conv1d(channels, channels, kernel_size=1)
+        self.silu2 = nn.SiLU()
+
+    def forward(self, x):
+        x = self.norm(x.transpose(1, 2)).transpose(1, 2)
+        x = self.silu1(self.conv1(x))
+        x = self.silu2(self.conv2(x))
+        return x
+
 class EmotionClassifier(nn.Module):
 
-    def __init__(self, latent_size: int, dropout: float = 0.1):
+    def __init__(self, latent_size: int, hidden_dim: int = 256, dilations=(1,2,4,8,16)):
         super().__init__()
-        self.enc = nn.TransformerEncoderLayer(d_model=latent_size, nhead=4, dim_feedforward=latent_size * 2, batch_first=True, dropout=dropout)
-        self.norm = nn.LayerNorm(latent_size)
-        self.linear_aro = nn.Linear(latent_size, 1)
-        self.linear_val = nn.Linear(latent_size, 1)
         
-    def forward(self, x: torch.Tensor):
-        """
-        x: (batch, latent_size, time)
-        """
-        x = x.permute(0, 2, 1)  # (batch, time, latent_size)
-        x = self.enc(x)
-        x = self.norm(x.mean(1))
-        y_aro = self.linear_aro(x).squeeze(-1)  # (batch,)
-        y_val = self.linear_val(x).squeeze(-1)  # (batch,)
+        self.proj = nn.Linear(latent_size, hidden_dim)
+        blocks = []
+        for d in dilations:
+            blocks.append(Conv1dLayerNormBlock(hidden_dim, dilation=d))
+        
+        self.conv = nn.Sequential(*blocks)
+        self.pool = ASP(hidden_dim)
+        
+        self.linear_aro = nn.Linear(hidden_dim * 2, 1)
+        self.linear_val = nn.Linear(hidden_dim * 2, 1)
+        
+    def forward(self, x):# x: [B,D,T] quant-embed seq
+
+        h = self.proj(x.transpose(1,2))
+        h = self.conv(h.transpose(1,2))   
+        
+        z = self.pool(h.transpose(1,2))  # [B, D*2]              
+        
+        y_aro = self.linear_aro(z).squeeze(-1)  
+        y_val = self.linear_val(z).squeeze(-1)  
+        
         return {"arousal": y_aro, "valence": y_val}
 
 
