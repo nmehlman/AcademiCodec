@@ -1,7 +1,7 @@
 #!/bin/bash
 source path.sh
 
-ckpt=/data2/nmehlman/logs/hifi-codec/HiFi-Codec-16k-320d-adv.10/g_00112000
+ckpt=/data2/nmehlman/logs/hifi-codec/HiFi-Codec-16k-320d-adv.12/g_00166000
 echo checkpoint path: ${ckpt}
 
 # the path of test wave
