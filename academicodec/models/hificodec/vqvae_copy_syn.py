@@ -14,7 +14,9 @@ parser = argparse.ArgumentParser()
 #Path
 parser.add_argument('--outputdir', type=str, required=True)
 parser.add_argument('--model_path', type=str, required=True)
-parser.add_argument('--input_wavdir', type=str, required=True)
+group = parser.add_mutually_exclusive_group(required=True)
+group.add_argument('--input_wavdir', type=str, help='Directory containing wav files')
+group.add_argument('--audio_file_list', type=str, help='Path to a file listing audio files')
 parser.add_argument('--config_path', type=str, required=True)
 parser.add_argument('--num_gens', type=int, default=1024)
 
@@ -40,10 +42,15 @@ if __name__ == '__main__':
     model.eval()
     print("Model ready")
 
-    wav_paths = glob.glob(f"{args.input_wavdir}/*.wav")[:args.num_gens]
-    print(f"Globbed {len(wav_paths)} wav files.")
+    if args.audio_file_list:
+        with open(args.audio_file_list, 'r') as f:
+            wav_paths = [line.strip() for line in f.readlines()]
+    else:
+        wav_paths = glob.glob(f"{args.input_wavdir}/*.wav")[:args.num_gens]
+    
+    print(f"Found {len(wav_paths)} wav files.")
 
-    for wav_path in wav_paths:
+    for wav_path in tqdm(wav_paths, desc="Generating audio"):
         fid, wav = model(wav_path)
         wav = wav.squeeze().cpu().numpy()
         sf.write(

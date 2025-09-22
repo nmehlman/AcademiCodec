@@ -42,6 +42,32 @@ class Conv1dLayerNormBlock(nn.Module):
         x = self.silu2(self.conv2(x))
         return x
 
+class CategoricalEmotionClassifier(nn.Module):
+
+    def __init__(self, latent_size: int, n_classes: int, hidden_dim: int = 256, dilations=(1,2,4,8,16)):
+        super().__init__()
+        
+        self.proj = nn.Linear(latent_size, hidden_dim)
+        blocks = []
+        for d in dilations:
+            blocks.append(Conv1dLayerNormBlock(hidden_dim, dilation=d))
+        
+        self.conv = nn.Sequential(*blocks)
+        self.pool = ASP(hidden_dim)
+        
+        self.linear = nn.Linear(hidden_dim * 2, n_classes)
+        
+    def forward(self, x):# x: [B,D,T] quant-embed seq
+
+        h = self.proj(x.transpose(1,2))
+        h = self.conv(h.transpose(1,2))   
+        
+        z = self.pool(h.transpose(1,2))  # [B, D*2]              
+        
+        y = self.linear(z)  
+        
+        return y
+
 class EmotionClassifier(nn.Module):
 
     def __init__(self, latent_size: int, hidden_dim: int = 256, dilations=(1,2,4,8,16)):
