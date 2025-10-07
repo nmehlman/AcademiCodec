@@ -14,13 +14,13 @@ class VqvaeTester(nn.Module):
         self.sample_rate = sample_rate
 
     @torch.no_grad()
-    def forward(self, wav_path):
+    def forward(self, wav_path, device='cuda'):
         # 单声道
         # wav.shape (T, ), 按照模型的 sr 读取
         wav, sr = librosa.load(wav_path, sr=self.sample_rate)
         fid = os.path.basename(wav_path)[:-4]
         wav = torch.tensor(wav).unsqueeze(0)
-        wav = wav.cuda()
+        wav = wav.to(device)
         # vq_codes is acoustic token
         vq_codes = self.vqvae.encode(wav)
         syn = self.vqvae(vq_codes)

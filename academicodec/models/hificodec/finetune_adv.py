@@ -20,7 +20,7 @@ from academicodec.models.encodec.msstftd import MultiScaleSTFTDiscriminator
 from academicodec.models.hificodec.models import Generator
 from academicodec.models.hificodec.models import MultiPeriodDiscriminator
 from academicodec.models.hificodec.models import MultiScaleDiscriminator
-from academicodec.models.hificodec.models import EmotionClassifier
+from academicodec.models.hificodec.models import CategoricalEmotionClassifier
 from academicodec.models.hificodec.emotion_callback import emotion_callback
 from academicodec.models.hificodec.models import feature_loss
 from academicodec.models.hificodec.models import generator_loss
@@ -81,7 +81,7 @@ def train(rank, a, h):
     mpd = MultiPeriodDiscriminator().to(device)
     msd = MultiScaleDiscriminator().to(device)
     mstftd = MultiScaleSTFTDiscriminator(32).to(device)
-    emotion_classifier = EmotionClassifier(latent_size=512).to(device)
+    emotion_classifier = CategoricalEmotionClassifier(latent_size=512, n_classes=9).to(device)
     if rank == 0:
         print(encoder)
         print(quantizer)
