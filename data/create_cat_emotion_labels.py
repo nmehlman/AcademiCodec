@@ -40,9 +40,9 @@ if __name__ == "__main__":
         val_files = [l.strip() for l in f]
 
     model = load_voxprofile_models(device=device)
-
+    
+    emotion_labels = {}
     for split, file_list in zip(["train", "val"], [train_files, val_files]):
-        emotion_labels = {}
         for filename in tqdm.tqdm(file_list, desc=f"Processing {split} set"):
             try:
                 audio, sr = torchaudio.load(filename)
@@ -55,7 +55,7 @@ if __name__ == "__main__":
             emotion_labels[filename] = preds.tolist()
         
 
-        # Save emotion labels as <split>_emotion_labs.json in same dir as file list
-        out_path = os.path.join(output_dir, f"{split}_emotion_labs_cat.json")
-        with open(out_path, "w") as f:
-            json.dump(emotion_labels, f, indent=4)
+    # Save emotion labels as <split>_emotion_labs.json in same dir as file list
+    out_path = os.path.join(output_dir, f"emotion_labs_cat.json")
+    with open(out_path, "w") as f:
+        json.dump(emotion_labels, f, indent=4)

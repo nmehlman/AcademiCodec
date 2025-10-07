@@ -1,6 +1,7 @@
 import os
 import argparse
 import random
+from unittest import skip
 import torch
 import sys
 from pathlib import Path
@@ -114,7 +115,7 @@ def main():
         torchaudio.save(save_path, audio.cpu(), 16000)
         all_data_paths.append(save_path)
 
-    with open(os.path.join(data_save_path, f"emotion_preds_{split}.json"), "w") as f: # Save emotion predictions
+    with open(os.path.join(data_save_path, f"emotion_labels.json"), "w") as f: # Save emotion predictions
         json.dump(emotion_preds, f, indent=4)
 
     # Create train/val lst files
@@ -124,12 +125,12 @@ def main():
     val_files = all_data_paths[:val_count]
     train_files = all_data_paths[val_count:]
 
-    write_list(train_files, data_save_path, f"train_{split}.lst")
-    write_list(val_files, data_save_path, f"val_{split}.lst")
+    write_list(train_files, os.path.join(data_save_path, f"train_{split}.lst"))
+    write_list(val_files, os.path.join(data_save_path, f"val_{split}.lst"))
 
     print(f"Found {len(all_data_paths)} audio files.")
-    print(f"Training files: {len(train_files)} written to {data_save_path}/train_{split}.lst")
-    print(f"Validation files: {len(val_files)} written to {data_save_path}/val_{split}.lst")
+    print(f"Training files: {len(train_files)} written to {data_save_path}/train.lst")
+    print(f"Validation files: {len(val_files)} written to {data_save_path}/val.lst")
 
 if __name__ == "__main__":
     main()

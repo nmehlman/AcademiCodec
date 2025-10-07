@@ -21,7 +21,7 @@ from academicodec.models.encodec.msstftd import MultiScaleSTFTDiscriminator
 from academicodec.models.hificodec.models import Generator
 from academicodec.models.hificodec.models import MultiPeriodDiscriminator
 from academicodec.models.hificodec.models import MultiScaleDiscriminator
-from academicodec.models.hificodec.models import EmotionClassifier
+from academicodec.models.hificodec.models import CategoricalEmotionClassifier
 from academicodec.models.hificodec.emotion_callback import emotion_callback
 from academicodec.models.hificodec.models import feature_loss
 from academicodec.models.hificodec.models import generator_loss
@@ -82,7 +82,7 @@ def train(rank, a, h):
     mpd = MultiPeriodDiscriminator().to(device)
     msd = MultiScaleDiscriminator().to(device)
     mstftd = MultiScaleSTFTDiscriminator(32).to(device)
-    emotion_classifier = EmotionClassifier(latent_size=512).to(device)
+    emotion_classifier = CategoricalEmotionClassifier(latent_size=512, n_classes=9).to(device)
     if rank == 0:
         print(encoder)
         print(quantizer)
@@ -259,7 +259,7 @@ def train(rank, a, h):
             
             optim_e.zero_grad()
             emo_preds = emotion_classifier(q)
-            emo_loss = F.mse_loss(emo_preds["valence"], emotion_labels["valence"].to(device).float()) + F.mse_loss(emo_preds["arousal"], emotion_labels["arousal"].to(device).float())
+            emo_loss = F.cross_entropy(emo_preds, emotion_labels.to(device)).float()
             
             if not warmup:
                 y_g_hat = generator(q)
@@ -333,17 +333,18 @@ def train(rank, a, h):
                 loss_gen_all = 0.0
                 loss_q = 0.0
             
+            # Run update of adversarial emotion classifier
             if not warmup:
                 for _ in range(h.adv_update_steps):
                     optim_e.zero_grad()
                     emo_preds = emotion_classifier(q.clone().detach())
-                    emo_loss = F.mse_loss(emo_preds["valence"], emotion_labels["valence"].to(device).float()) + F.mse_loss(emo_preds["arousal"], emotion_labels["arousal"].to(device).float())
+                    emo_loss = F.cross_entropy(emo_preds, emotion_labels.to(device)).float()
                     emo_loss.backward()
                     optim_e.step()
             else: # Only do single update per batch during warm-up
                 optim_e.zero_grad()
                 emo_preds = emotion_classifier(q.clone().detach())
-                emo_loss = F.mse_loss(emo_preds["valence"], emotion_labels["valence"].to(device).float()) + F.mse_loss(emo_preds["arousal"], emotion_labels["arousal"].to(device).float())
+                emo_loss = F.cross_entropy(emo_preds, emotion_labels.to(device)).float()
                 emo_loss.backward()
                 optim_e.step()
             
@@ -402,9 +403,6 @@ def train(rank, a, h):
                     encoder.eval()
                     quantizer.eval()
                     torch.cuda.empty_cache()
-                    
-                    # Callback to plot emotion results
-                    emotion_callback(encoder, quantizer, generator, validation_loader, sw, n_batches=h.n_emotion_batches, steps=steps, device=device)
                     
                     val_err_tot = 0
                     with torch.no_grad():
